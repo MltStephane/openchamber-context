@@ -1,0 +1,17 @@
+{
+  "lockfileVersion": 1,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "openchamber-context",
+      "dependencies": {
+        "@openchamber/sdk": "2.7.0",
+      },
+    },
+  },
+  "packages": {
+    "@openchamber/sdk": ["@openchamber/sdk@2.7.0", "", { "dependencies": { "zod": "^4.3.6" }, "bin": { "openchamber-guest-check": "scripts/check-guest.ts", "openchamber-guest-bundle": "scripts/bundle-guest.ts" } }, "sha512-dYrQad76cm1YMOs9GEgX7f9pxzqozPQUmtsmqGUNdKADqhaWRg9vIHJiM5JptZgpmim0uwD8C/+Sz+5tRpZv/g=="],
+
+    "zod": ["zod@4.6.7", "", {}, "sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg=="],
+  }
+}

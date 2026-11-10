@@ -1,0 +1,3 @@
+node_modules/
+# Screenshots the OpenChamber browser tool saves while checking the UI.
+.openchamber/
