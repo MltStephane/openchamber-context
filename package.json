@@ -1,6 +1,6 @@
 {
   "name": "openchamber-context",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "type": "module",
   "description": "OpenChamber extension: how full the context window of the open session is, like Claude Code's /context, in a sidebar tab.",
