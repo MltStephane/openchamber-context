@@ -4,13 +4,15 @@ import { join } from 'node:path';
 
 import type { MessageKind, SessionUsage, ToolCall, Turn } from './breakdown.ts';
 import { CLAUDE_CODE_COMPACTION } from './compaction.ts';
-import { emptyMessageChars } from './opencode.ts';
+import { claudeAgentTranscriptId, claudeAgentWindow } from './claude-agent.ts';
+import { emptyMessageChars, openDatabase } from './opencode.ts';
 
 const PROJECTS_PATH = join(homedir(), '.claude/projects');
-/** OpenChamber's Claude provider keeps here which transcript backs each of its sessions. */
+/** Where OpenChamber's Claude provider kept, until its state moved to OpenCode's database, which transcript backs each session. */
 const SESSIONS_MAP_PATH = join(homedir(), '.local/share/opencode-claude/sessions.json');
 const MODELS_CATALOG_PATH = join(homedir(), '.local/share/opencode-claude/models.json');
 
+type Database = import('node:sqlite').DatabaseSync;
 type SessionLink = { foreignSessionId?: string; cwd?: string; modelId?: string };
 type Usage = {
   input_tokens?: number;
@@ -42,9 +44,19 @@ type TranscriptLine = {
 const SYNTHETIC_MODEL = '<synthetic>';
 
 /** Reads the Claude Code transcript behind an OpenChamber session. Returns null when none is found. */
-export function readClaudeCodeSession(sessionId: string): SessionUsage | null {
+export async function readClaudeCodeSession(sessionId: string): Promise<SessionUsage | null> {
+  const db = await openDatabase().catch(() => null);
+  try {
+    return readTranscript(sessionId, db);
+  } finally {
+    db?.close();
+  }
+}
+
+function readTranscript(sessionId: string, db: Database | null): SessionUsage | null {
   const link = readSessionLink(sessionId);
-  const transcript = findTranscript(link?.foreignSessionId ?? sessionId, link?.cwd);
+  const transcriptId = link?.foreignSessionId ?? (db && claudeAgentTranscriptId(db, sessionId));
+  const transcript = findTranscript(transcriptId ?? sessionId, link?.cwd);
   if (!transcript) return null;
 
   const turnsByMessage = new Map<string, Turn>();
@@ -111,7 +123,7 @@ export function readClaudeCodeSession(sessionId: string): SessionUsage | null {
     source: 'claude-code',
     // The link keeps the `[1m]` suffix the transcript drops.
     model: fullModel,
-    catalogLimit: catalogLimit(fullModel),
+    catalogLimit: catalogLimit(fullModel) ?? (fullModel && db ? claudeAgentWindow(db, fullModel) : null),
     turns: [...turnsByMessage.values()].filter((turn) => turn.context > 0),
     firstUserMessageChars: firstUserMessageChars ?? 0,
     toolCalls,

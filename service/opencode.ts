@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 import type { MessageKind, SessionUsage, ToolCall, Turn } from './breakdown.ts';
+import { CLAUDE_AGENT_PROVIDER, claudeAgentWindow } from './claude-agent.ts';
 import { openCodeCompaction } from './compaction.ts';
 
 export const DATABASE_PATH = join(homedir(), '.local/share/opencode/opencode.db');
@@ -104,7 +105,7 @@ function readCurrent(db: Database, sessionId: string): SessionUsage | null {
   return {
     source: 'opencode',
     model: modelID ? `${providerID}/${modelID}` : null,
-    catalogLimit: catalogLimit(providerID, modelID),
+    catalogLimit: catalogLimit(db, providerID, modelID),
     turns,
     firstUserMessageChars: firstUserMessageChars ?? 0,
     toolCalls,
@@ -181,7 +182,7 @@ function readLegacy(db: Database, sessionId: string): SessionUsage | null {
   return {
     source: 'opencode',
     model: last?.modelID ? `${last.providerID}/${last.modelID}` : null,
-    catalogLimit: last ? catalogLimit(last.providerID, last.modelID) : null,
+    catalogLimit: last ? catalogLimit(db, last.providerID, last.modelID) : null,
     turns,
     firstUserMessageChars,
     toolCalls,
@@ -220,9 +221,10 @@ function toTurn(tokens: MessageTokens): Turn {
 // The service stops after ten quiet minutes, so a catalog read once stays fresh enough.
 let catalog: ModelsCatalog | null = null;
 
-/** The window OpenCode's models.dev cache gives for this model, if any. */
-function catalogLimit(providerID: string | null, modelID: string | null): number | null {
+/** The window OpenCode's models.dev cache, or the Claude provider's own catalog, gives for this model. */
+function catalogLimit(db: Database, providerID: string | null, modelID: string | null): number | null {
   if (!providerID || !modelID) return null;
+  if (providerID === CLAUDE_AGENT_PROVIDER) return claudeAgentWindow(db, modelID);
   try {
     catalog ??= JSON.parse(readFileSync(MODELS_CATALOG_PATH, 'utf8')) as ModelsCatalog;
   } catch {

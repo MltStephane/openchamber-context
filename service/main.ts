@@ -54,7 +54,7 @@ async function readContext(body: string): Promise<ContextReport> {
 async function readUsage(sessionId: string): Promise<SessionUsage | null> {
   let claudeCode: SessionUsage | null;
   try {
-    claudeCode = readClaudeCodeSession(sessionId);
+    claudeCode = await readClaudeCodeSession(sessionId);
   } catch {
     throw new ReadError('transcript-unreadable');
   }

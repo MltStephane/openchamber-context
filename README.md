@@ -82,7 +82,7 @@ The service only returns ids and names (skills, tools). Texts and number formatt
 
 ### Sources (read-only)
 
-- **Claude Code** first: `~/.local/share/opencode-claude/sessions.json` maps the OpenChamber id (`ses_…`) to the transcript `~/.claude/projects/<encoded cwd>/<foreignSessionId>.jsonl`. The cache lifetime comes from `usage.cache_creation` (5 min or 1 h), the window from `~/.local/share/opencode-claude/models.json`.
+- **Claude Code** first: the Claude provider maps the OpenChamber id (`ses_…`) to the transcript `~/.claude/projects/<encoded cwd>/<id>.jsonl`, in OpenCode's `kv` table (`plugin:<hex id>:sessions/ses_…`, `claudeSessionID`), formerly in `~/.local/share/opencode-claude/sessions.json`. The cache lifetime comes from `usage.cache_creation` (5 min or 1 h), the window from the provider's catalog (`kv` key `plugin:<hex id>:models`, formerly `~/.local/share/opencode-claude/models.json`).
 - **OpenCode**: `~/.local/share/opencode/opencode.db` through `node:sqlite`. Format 2.x (`session_message`), then the older format (`message`, `part`). Window from `~/.cache/opencode/models.json`.
 - **Prompt blocks**: `instruction_state` and `instruction_blob` (skills, AGENTS.md, MCP instructions, Code Mode catalog, OpenChamber context, environment), and the agent's `.md` file.
 - **Subagents**: `session_v2.parent_id`.
@@ -124,6 +124,7 @@ status/view.ts           rendering and styles
 status/i18n.ts           EN / FR dictionaries and number formatting
 service/main.ts          local HTTP service, Claude Code then OpenCode
 service/claude-code.ts   Claude Code transcript reader
+service/claude-agent.ts  Claude provider state in OpenCode's kv: transcript link, model windows
 service/opencode.ts      OpenCode database reader
 service/prompt-parts.ts  system prompt blocks
 service/subagents.ts     child sessions

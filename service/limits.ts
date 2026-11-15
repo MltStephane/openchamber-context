@@ -3,10 +3,12 @@ const ONE_MILLION = 1_000_000;
 
 /**
  * Models with a 1M window whose id does not say so. Taken from the local
- * Claude catalog (~/.local/share/opencode-claude/models.json) on 2026-11-09,
- * for when that file is missing.
+ * Claude provider's catalog on 2026-11-15, for when it cannot be read.
  */
 const KNOWN_LIMITS: Record<string, number> = {
+  'claude-opus-5-5': ONE_MILLION,
+  'claude-fable-5-2': ONE_MILLION,
+  'claude-fable-5-1': ONE_MILLION,
   'claude-sonnet-5-5': ONE_MILLION,
   'claude-haiku-5-5': ONE_MILLION,
   'claude-sonnet-5': ONE_MILLION,

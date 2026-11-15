@@ -50,6 +50,9 @@ function readBuffer(file) {
 var DEFAULT_LIMIT = 200000;
 var ONE_MILLION = 1e6;
 var KNOWN_LIMITS = {
+  "claude-opus-5-5": ONE_MILLION,
+  "claude-fable-5-2": ONE_MILLION,
+  "claude-fable-5-1": ONE_MILLION,
   "claude-sonnet-5-5": ONE_MILLION,
   "claude-haiku-5-5": ONE_MILLION,
   "claude-sonnet-5": ONE_MILLION,
@@ -208,6 +211,25 @@ import { existsSync as existsSync3, readdirSync, readFileSync as readFileSync3 }
 import { homedir as homedir3 } from "node:os";
 import { join as join3 } from "node:path";
 
+// service/claude-agent.ts
+var CLAUDE_AGENT_PROVIDER = "claude-agent";
+var KEY_PREFIX = `plugin:${[..."opencode.provider.claude-agent"].map((char) => char.charCodeAt(0).toString(16).padStart(4, "0")).join("")}:`;
+function readValue(db, key) {
+  try {
+    const row = db.prepare("SELECT value FROM kv WHERE key = ?").get(KEY_PREFIX + key);
+    return row ? JSON.parse(row.value) : null;
+  } catch {
+    return null;
+  }
+}
+function claudeAgentTranscriptId(db, sessionId) {
+  return readValue(db, `sessions/${sessionId}`)?.claudeSessionID ?? null;
+}
+function claudeAgentWindow(db, model) {
+  const models = readValue(db, "models")?.models ?? [];
+  return models.find((entry) => entry.id === model || entry.resolvedModel === model)?.contextWindow ?? null;
+}
+
 // service/opencode.ts
 import { existsSync as existsSync2, readFileSync as readFileSync2 } from "node:fs";
 import { homedir as homedir2 } from "node:os";
@@ -289,7 +311,7 @@ function readCurrent(db, sessionId) {
   return {
     source: "opencode",
     model: modelID ? `${providerID}/${modelID}` : null,
-    catalogLimit: catalogLimit(providerID, modelID),
+    catalogLimit: catalogLimit(db, providerID, modelID),
     turns,
     firstUserMessageChars: firstUserMessageChars ?? 0,
     toolCalls,
@@ -347,7 +369,7 @@ function readLegacy(db, sessionId) {
   return {
     source: "opencode",
     model: last?.modelID ? `${last.providerID}/${last.modelID}` : null,
-    catalogLimit: last ? catalogLimit(last.providerID, last.modelID) : null,
+    catalogLimit: last ? catalogLimit(db, last.providerID, last.modelID) : null,
     turns,
     firstUserMessageChars,
     toolCalls,
@@ -379,9 +401,11 @@ function toTurn(tokens) {
   };
 }
 var catalog = null;
-function catalogLimit(providerID, modelID) {
+function catalogLimit(db, providerID, modelID) {
   if (!providerID || !modelID)
     return null;
+  if (providerID === CLAUDE_AGENT_PROVIDER)
+    return claudeAgentWindow(db, modelID);
   try {
     catalog ??= JSON.parse(readFileSync2(MODELS_CATALOG_PATH, "utf8"));
   } catch {
@@ -395,9 +419,18 @@ var PROJECTS_PATH = join3(homedir3(), ".claude/projects");
 var SESSIONS_MAP_PATH = join3(homedir3(), ".local/share/opencode-claude/sessions.json");
 var MODELS_CATALOG_PATH2 = join3(homedir3(), ".local/share/opencode-claude/models.json");
 var SYNTHETIC_MODEL = "<synthetic>";
-function readClaudeCodeSession(sessionId) {
+async function readClaudeCodeSession(sessionId) {
+  const db = await openDatabase().catch(() => null);
+  try {
+    return readTranscript(sessionId, db);
+  } finally {
+    db?.close();
+  }
+}
+function readTranscript(sessionId, db) {
   const link = readSessionLink(sessionId);
-  const transcript = findTranscript(link?.foreignSessionId ?? sessionId, link?.cwd);
+  const transcriptId = link?.foreignSessionId ?? (db && claudeAgentTranscriptId(db, sessionId));
+  const transcript = findTranscript(transcriptId ?? sessionId, link?.cwd);
   if (!transcript)
     return null;
   const turnsByMessage = new Map;
@@ -467,7 +500,7 @@ function readClaudeCodeSession(sessionId) {
   return {
     source: "claude-code",
     model: fullModel,
-    catalogLimit: catalogLimit2(fullModel),
+    catalogLimit: catalogLimit2(fullModel) ?? (fullModel && db ? claudeAgentWindow(db, fullModel) : null),
     turns: [...turnsByMessage.values()].filter((turn) => turn.context > 0),
     firstUserMessageChars: firstUserMessageChars ?? 0,
     toolCalls,
@@ -734,7 +767,7 @@ async function readContext(body) {
 async function readUsage(sessionId) {
   let claudeCode;
   try {
-    claudeCode = readClaudeCodeSession(sessionId);
+    claudeCode = await readClaudeCodeSession(sessionId);
   } catch {
     throw new ReadError("transcript-unreadable");
   }
